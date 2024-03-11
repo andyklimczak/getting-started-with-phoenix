@@ -60,3 +60,54 @@ $ mix phx.server
 navigate to [http://localhost:4000](http://localhost:4000)
 
 ### 4.2 Say "Hello", Phoenix
+
+```elixir
+# router.ex
+
+scope "/", BlogWeb do
+    pipe_through :browser
+
+    get "/", PageController, :home
+    get "/articles", ArticleController, :index
+end
+```
+
+Create `lib/blog_web/controllers/article_controller.ex`
+```elixir
+defmodule BlogWeb.ArticleController do
+  use BlogWeb, :controller
+
+  def index(conn, _params) do
+    render(conn, :index)
+  end
+end
+```
+
+Create `lib/blog_web/controllers/article_html.ex`
+```elixir
+defmodule BlogWeb.ArticleHTML do
+  use BlogWeb, :html
+
+  embed_templates "article_html/*"
+end
+```
+
+Create `lib/blog_web/controllers/article_html/index.html`
+```html
+<h1>Hello Phoenix</h1>
+```
+
+Visit [http://localhost:4000/articles](http://localhost:4000)
+
+### 4.3 Setting the Application to Home Page
+
+```elixir
+# router.ex
+
+get "/", ArticleController, :index
+get "/articles", ArticleController, :index
+```
+
+## 5 Autoloading
+
+## 6 MVC and You
