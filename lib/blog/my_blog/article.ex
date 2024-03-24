@@ -14,5 +14,6 @@ defmodule Blog.MyBlog.Article do
     article
     |> cast(attrs, [:title, :body])
     |> validate_required([:title, :body])
+    |> validate_length(:body, min: 10)
   end
 end
