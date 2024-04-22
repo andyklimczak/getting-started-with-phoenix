@@ -9,7 +9,7 @@
 
 Prerequisites:
 - elixir
-- postgres
+- SQLite3
 
 #### 3.1.1 Installing Ruby
 
@@ -20,10 +20,10 @@ Erlang/OTP 26 [erts-14.2.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threa
 Elixir 1.16.1 (compiled with Erlang/OTP 26)
 ```
 
-#### 3.1.2 Installing Postgres
+#### 3.1.2 Installing SQLite3
 
 ```shell
-$ postgres --version
+$ sqlite3 --version
 ```
 
 #### 3.1.3 Installing Phoenix
@@ -35,7 +35,7 @@ $ mix archive.install hex phx_new
 ### 3.2 Creating the Blog Application
 
 ```shell
-$ mix phx.new blog
+$ mix phx.new blog --database sqlite3
 ```
 
 ```shell
@@ -692,3 +692,306 @@ To finish up, let's link to that page from the top of `lib/blog_web/article_html
 ```
 
 ## 7.4 Updating an Article
+
+We've covered the "CR" of CRUD. Now let's move on to the "U" (Update). Updating a resource is very similar to creating a resource. They are both multi-step processes. First, the user requests a form to edit the data. Then, the user submits the form. If there are no errors, then the resource is updated. Else, the form is redisplayed with error messages, and the process is repeated.
+
+These steps are conventionally handled by a controller's edit and update actions. Let's add a typical implementation of these actions to `lib/blog_web/article_controller.ex`, below the create action::
+
+```elixir
+defmodule BlogWeb.ArticleController do
+  use BlogWeb, :controller
+
+  alias Blog.MyBlog
+  alias Blog.MyBlog.Article
+
+  def index(conn, _params) do
+    articles = MyBlog.list_articles()
+    render(conn, :index, articles: articles)
+  end
+
+  def show(conn, %{"id" => id}) do
+    article = MyBlog.get_article!(id)
+    render(conn, :show, article: article)
+  end
+
+  def new(conn, _params) do
+    changeset = MyBlog.change_article(%Article{})
+    render(conn, :new, changeset: changeset)
+  end
+
+  def create(conn, %{"article" => article_params}) do
+    case MyBlog.create_article(article_params) do
+      {:ok, article} ->
+        conn
+        |> put_flash(:info, "Article created successfully.")
+        |> redirect(to: ~p"/articles/#{article}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :new, changeset: changeset)
+    end
+  end
+
+  def edit(conn, %{"id" => id}) do
+    article = MyBlog.get_article!(id)
+    changeset = MyBlog.change_article(article)
+    render(conn, :edit, article: article, changeset: changeset)
+  end
+
+  def update(conn, %{"id" => id, "article" => article_params}) do
+    article = MyBlog.get_article!(id)
+
+    case MyBlog.update_article(article, article_params) do
+      {:ok, article} ->
+        conn
+        |> put_flash(:info, "Article updated successfully.")
+        |> redirect(to: ~p"/articles/#{article}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :edit, article: article, changeset: changeset)
+    end
+  end
+end
+```
+
+Notice how the edit and update actions resemble the new and create actions.
+The edit action fetches the article from the database, and passes it to the view  so that it can be used when building the form.
+The edit action fetches the article from the database, creates a changeset using that article, and passes the article and the changeset to the view.
+By using the argument `:edit` in the `render` function, the edit action will render `lib/blog_web/controllers/article_html/edit.html.heex`.
+
+
+The update action (re-)fetches the article from the database, and attempts to update it with the submitted form data filtered by article_params. If no validations fail and the update is successful, the action redirects the browser to the article's page. Else, the action redisplays the form — with error messages — by rendering `lib/blog_web/controllers/article_html/edit.html.heex`.
+
+
+The `edit` method uses the methods `MyBlog.get_article!` and `MyBlog.change_article` we already have in the `MyBlog` context.
+But the `update` action uses a method we still need to add: `MyBlog.update_article`. Add `update_article` to the `MyBlog` context.
+
+```elixir
+defmodule Blog.MyBlog do
+  import Ecto.Query, warn: false
+
+  alias Blog.Repo
+  alias Blog.MyBlog.Article
+
+  def list_articles() do
+    Repo.all(Article)
+  end
+
+  def get_article!(id) do
+    Repo.get!(Article, id)
+  end
+
+  def change_article(%Article{} = article, attrs \\ %{}) do
+    Article.changeset(article, attrs)
+  end
+
+  def create_article(attrs \\ %{}) do
+    %Article{}
+    |> Article.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_article(%Article{} = article, attrs) do
+    article
+    |> Article.changeset(attrs)
+    |> Repo.update()
+  end
+end
+```
+
+### 7.4.1 Using Partials to Share View Code
+
+Our `edit` form will look the same as our `new` form.
+
+Because the code will be the same, we're going to factor it out into a shared view called a partial. Let's create `lib/blog_web/controllers/article_html/article_form.html.heex` with the following contents:
+
+```html
+<.simple_form :let={f} for={@changeset} action={@action}>
+  <.error :if={@changeset.action}>
+    Oops, something went wrong! Please check the errors below.
+  </.error>
+  <.input field={f[:title]} type="text" label="Title" />
+  <.input field={f[:body]} type="text" label="Body" />
+  <:actions>
+    <.button>Save Article</.button>
+  </:actions>
+</.simple_form>
+```
+
+The above code is the same as our form in `lib/blog_web/controllers/article_html/new.html.heex`, except that `action` now uses `@action`.
+
+
+Let's update `lib/blog_web/controllers/article_html/new.html.heex` to use the partial:
+
+```html
+<.header>
+    New Article
+</.header>
+
+<.article_form changeset={@changeset} action={~p"/articles"} />
+```
+
+
+And now, let's create a very similar app/views/articles/edit.html.erb:
+
+```html
+<.header>
+    Edit Article
+</.header>
+
+<.article_form changeset={@changeset} action={~p"/articles/#{@article}"} />
+```
+
+### 7.4.2 Finishing Up
+
+We can now update an article by visiting its edit page, e.g. http://localhost:4000/articles/1/edit. To finish up, let's link to the edit page from the bottom of `lib/blog_web/controllers/article_html/show.html.heex`:
+
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul>
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+</ul>
+```
+
+## 7.5 Deleting an Article
+
+Finally, we arrive at the "D" (Delete) of CRUD.
+Deleting a resource is a simpler process than creating or updating.
+It only requires a route and a controller action.
+And our resourceful routing (resources :articles) already provides the route, which maps DELETE /articles/:id requests to the destroy action of `ArticlesController`.
+
+```elixir
+defmodule BlogWeb.ArticleController do
+  use BlogWeb, :controller
+
+  alias Blog.MyBlog
+  alias Blog.MyBlog.Article
+
+  def index(conn, _params) do
+    articles = MyBlog.list_articles()
+    render(conn, :index, articles: articles)
+  end
+
+  def show(conn, %{"id" => id}) do
+    article = MyBlog.get_article!(id)
+    render(conn, :show, article: article)
+  end
+
+  def new(conn, _params) do
+    changeset = MyBlog.change_article(%Article{})
+    render(conn, :new, changeset: changeset)
+  end
+
+  def create(conn, %{"article" => article_params}) do
+    case MyBlog.create_article(article_params) do
+      {:ok, article} ->
+        conn
+        |> put_flash(:info, "Article created successfully.")
+        |> redirect(to: ~p"/articles/#{article}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :new, changeset: changeset)
+    end
+  end
+
+  def edit(conn, %{"id" => id}) do
+    article = MyBlog.get_article!(id)
+    changeset = MyBlog.change_article(article)
+    render(conn, :edit, article: article, changeset: changeset)
+  end
+
+  def update(conn, %{"id" => id, "article" => article_params}) do
+    article = MyBlog.get_article!(id)
+
+    case MyBlog.update_article(article, article_params) do
+      {:ok, article} ->
+        conn
+        |> put_flash(:info, "Article updated successfully.")
+        |> redirect(to: ~p"/articles/#{article}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :edit, article: article, changeset: changeset)
+    end
+  end
+  
+  def delete(conn, %{"id" => id}) do
+    article = MyBlog.get_article!(id)
+    {:ok, _article} = MyBlog.delete_article(article)
+
+    conn
+    |> put_flash(:info, "Article deleted successfully.")
+    |> redirect(to: ~p"/articles")
+  end
+end
+```
+
+The newly added `delete` method in the controller uses a new method in the `MyBlog` context: `MyBlog.delete_article`. Let's add that now:
+
+```elixir
+defmodule Blog.MyBlog do
+  import Ecto.Query, warn: false
+
+  alias Blog.Repo
+  alias Blog.MyBlog.Article
+
+  def list_articles() do
+    Repo.all(Article)
+  end
+
+  def get_article!(id) do
+    Repo.get!(Article, id)
+  end
+
+  def change_article(%Article{} = article, attrs \\ %{}) do
+    Article.changeset(article, attrs)
+  end
+
+  def create_article(attrs \\ %{}) do
+    %Article{}
+    |> Article.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_article(%Article{} = article, attrs) do
+    article
+    |> Article.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_article(%Article{} = article) do
+    Repo.delete(article)
+  end
+end
+```
+
+The destroy action fetches the article from the database, and calls destroy on it. Then, it redirects the browser to the root path with status code 303 See Other.
+
+We have chosen to redirect to the root path because that is our main access point for articles. But, in other circumstances, you might choose to redirect to e.g. `|> redirect(to: ~p"/articles")`.
+
+Now let's add a link at the bottom of `lib/blog_web/controllers/article_html/show.html.heex` so that we can delete an article from its own page:
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul>
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+```
+
+And that's it! We can now list, show, create, update, and delete articles! InCRUDable!

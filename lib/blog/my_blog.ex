@@ -21,4 +21,14 @@ defmodule Blog.MyBlog do
     |> Article.changeset(attrs)
     |> Repo.insert()
   end
+
+  def update_article(%Article{} = article, attrs) do
+    article
+    |> Article.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_article(%Article{} = article) do
+    Repo.delete(article)
+  end
 end
