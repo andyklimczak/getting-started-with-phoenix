@@ -995,3 +995,308 @@ Now let's add a link at the bottom of `lib/blog_web/controllers/article_html/sho
 ```
 
 And that's it! We can now list, show, create, update, and delete articles! InCRUDable!
+
+## 8 Adding a Second Model
+
+It's time to add a second model to the application. The second model will handle comments on articles.
+
+### 8.1 Generating a Model
+
+We're going to see the same generator that we used before when creating the Article model. This time we'll create a Comment model to hold a reference to an article. Run this command in your terminal:
+
+```shell
+$ mix phx.gen.context MyBlog Comment comments commenter:string body:text article_id:references:articles
+```
+
+It will ask you if you want to add functions to the existing context:
+```shell
+You are generating into an existing context.
+
+The Blog.MyBlog context currently has 6 functions and 1 file in its directory.
+
+  * It's OK to have multiple resources in the same context as long as they are closely related. But if a context grows too large, consider breaking it apart
+
+  * If they are not closely related, another context probably works better
+
+The fact two entities are related in the database does not mean they belong to the same context.
+
+If you are not sure, prefer creating a new context over adding to the existing one.
+
+Would you like to proceed? [Yn] 
+```
+
+We want to put the new `Comments` model in the same context as the existing `Article` model. Press enter.
+
+It will create new files and add to existing files:
+```shell
+* creating lib/blog/my_blog/comment.ex
+* creating priv/repo/migrations/20240423232742_create_comments.exs
+* injecting lib/blog/my_blog.ex
+* creating test/blog/my_blog_test.exs
+* injecting test/blog/my_blog_test.exs
+* creating test/support/fixtures/my_blog_fixtures.ex
+* injecting test/support/fixtures/my_blog_fixtures.ex
+
+Remember to update your repository by running migrations:
+
+    $ mix ecto.migrate
+```
+
+First, take a look at the `Comment` model, located at `lib/blog/my_blog/comment.ex`:
+
+```elixir
+defmodule Blog.MyBlog.Comment do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "comments" do
+    field :body, :string
+    field :commenter, :string
+    field :article_id, :id
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc false
+  def changeset(comment, attrs) do
+    comment
+    |> cast(attrs, [:commenter, :body])
+    |> validate_required([:commenter, :body])
+  end
+end
+```
+
+In addition to the model, Pheonix has also made a migration to create the corresponding database table:
+```elixir
+defmodule Blog.Repo.Migrations.CreateComments do
+  use Ecto.Migration
+
+  def change do
+    create table(:comments) do
+      add :commenter, :string
+      add :body, :text
+      add :article_id, references(:articles, on_delete: :nothing)
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create index(:comments, [:article_id])
+  end
+end
+```
+
+The `article_id` field is used to reference the `id` field on the `articles` table.
+
+Let's make one small change to the `on_delete` option for the `article_id` field to keep data consistent.
+
+```elixir
+defmodule Blog.Repo.Migrations.CreateComments do
+  use Ecto.Migration
+
+  def change do
+    create table(:comments) do
+      add :commenter, :string
+      add :body, :text
+      add :article_id, references(:articles, on_delete: :delete_all)
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create index(:comments, [:article_id])
+  end
+end
+```
+
+This will help keep out database clean, so when an article gets deleted, the associated comments for that article also gets deleted.
+The `delete_all` option will prevent comments from existing in the database without an article existing.
+
+Go ahead and run the migration:
+```shell
+mix ecto.migrate
+```
+
+Phoenix is smart enough to only execute the migrations that have not already been run against the current database, so in this case you will just see:
+
+```shell
+Generated blog app
+
+19:41:18.734 [info] == Running 20240329022229 Blog.Repo.Migrations.CreateArticles.change/0 forward
+
+19:41:18.738 [info] create table articles
+
+19:41:18.738 [info] == Migrated 20240329022229 in 0.0s
+
+19:41:18.747 [info] == Running 20240423232324 Blog.Repo.Migrations.CreateComments.change/0 forward
+
+19:41:18.747 [info] create table comments
+
+19:41:18.747 [info] create index comments_article_id_index
+
+19:41:18.747 [info] == Migrated 20240423232324 in 0.0s
+```
+
+
+## 8.2 Associating Models
+
+Ecto associations let you easily declare the relationship between two models.
+In the case of comments and articles, you could write out the relationships this way:
+
+- Each comment belongs to one article.
+- One article can have many comments.
+
+In fact, this is very close to the syntax that Ecto uses to declare this association.
+Let's modify the `Comment` model to make each comment belong_to an `Article`:
+
+Update the `Comment` model located at `lib/blog/my_blog/comment.ex` with this:
+```elixir
+defmodule Blog.MyBlog.Comment do
+  use Ecto.Schema
+  import Ecto.Changeset
+  alias Blog.MyBlog.Article
+
+  schema "comments" do
+    field :body, :string
+    field :commenter, :string
+    belongs_to :article, Article
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc false
+  def changeset(comment, attrs) do
+    comment
+    |> cast(attrs, [:commenter, :body, :article_id])
+    |> validate_required([:commenter, :body])
+    |> assoc_constraint(:article_id)
+  end
+end
+```
+
+You'll need to edit `lib/blog/my_blog/article.ex` to add the other side of the association:
+```elixir
+defmodule Blog.MyBlog.Article do
+  use Ecto.Schema
+  import Ecto.Changeset
+  alias Blog.MyBlog.Comment
+
+  schema "articles" do
+    field :title, :string
+    field :body, :string
+    has_many :comments, Comment
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc false
+  def changeset(article, attrs) do
+    article
+    |> cast(attrs, [:title, :body])
+    |> validate_required([:title, :body])
+    |> validate_length(:body, min: 10)
+  end
+end
+```
+
+> :warning: For more information on Ecto associations, see the [Ecto Assocations](https://hexdocs.pm/ecto/2.2.11/associations.html#one-to-many) guide.
+
+Let's test the relationship in `iex`:
+```shell
+$ iex -S mix
+[info] Migrations already up
+Interactive Elixir (1.14.3) - press Ctrl+C to exit (type h() ENTER for help)
+iex(1)> 
+
+```
+First create a new article:
+```shell
+iex(1)> alias Blog.MyBlog.Article
+Blog.MyBlog.Article
+iex(2)> article = %Article{title: "My test article", body: "Has many comments"}
+%Blog.MyBlog.Article{
+  __meta__: #Ecto.Schema.Metadata<:built, "articles">,
+  id: nil,
+  body: "Has many comments",
+  title: "My test article",
+  inserted_at: nil,
+  updated_at: nil
+}
+iex(3)> alias Blog.Repo
+Blog.Repo
+iex(4)> article = Repo.insert!(article)
+[debug] QUERY OK source="articles" db=9.6ms idle=1008.4ms
+INSERT INTO "articles" ("body","title","inserted_at","updated_at") VALUES (?,?,?,?) RETURNING "id" ["Has many comments", "My test article", ~U[2024-04-23 23:53:05Z], ~U[2024-04-23 23:53:05Z]]
+↳ anonymous fn/4 in :elixir.eval_external_handler/1, at: src/elixir.erl:309
+%Blog.MyBlog.Article{
+  __meta__: #Ecto.Schema.Metadata<:loaded, "articles">,
+  id: 4,
+  title: "My test article",
+  body: "Has many comments",
+  comments: #Ecto.Association.NotLoaded<association :comments is not loaded>,
+  inserted_at: ~U[2024-04-24 00:09:21Z],
+  updated_at: ~U[2024-04-24 00:09:21Z]
+}
+```
+
+Then let's create a comment for the article we just created:
+```shell
+iex(11)> comment = Ecto.build_assoc(article, :comments, %{commenter: "First commenter", body: "Sweet article"})
+%Blog.MyBlog.Comment{
+  __meta__: #Ecto.Schema.Metadata<:built, "comments">,
+  id: nil,
+  body: "Sweet article",
+  commenter: "First commenter",
+  article_id: 5,
+  article: #Ecto.Association.NotLoaded<association :article is not loaded>,
+  inserted_at: nil,
+  updated_at: nil
+}
+iex(12)> Repo.insert!(comment)
+[debug] QUERY OK source="comments" db=0.4ms idle=1273.9ms
+INSERT INTO "comments" ("article_id","body","commenter","inserted_at","updated_at") VALUES (?,?,?,?,?) RETURNING "id" [5, "Sweet article", "First commenter", ~U[2024-04-24 00:12:35Z], ~U[2024-04-24 00:12:35Z]]
+↳ anonymous fn/4 in :elixir.eval_external_handler/1, at: src/elixir.erl:309
+%Blog.MyBlog.Comment{
+  __meta__: #Ecto.Schema.Metadata<:loaded, "comments">,
+  id: 1,
+  body: "Sweet article",
+  commenter: "First commenter",
+  article_id: 5,
+  article: #Ecto.Association.NotLoaded<association :article is not loaded>,
+  inserted_at: ~U[2024-04-24 00:12:35Z],
+  updated_at: ~U[2024-04-24 00:12:35Z]
+}
+```
+
+Let's see if it worked:
+```shell
+iex(14)> Repo.get(Article, article.id) |> Repo.preload(:comments)
+[debug] QUERY OK source="articles" db=0.0ms queue=0.2ms idle=1774.5ms
+SELECT a0."id", a0."title", a0."body", a0."inserted_at", a0."updated_at" FROM "articles" AS a0 WHERE (a0."id" = ?) [5]
+↳ anonymous fn/4 in :elixir.eval_external_handler/1, at: src/elixir.erl:309
+[debug] QUERY OK source="comments" db=0.0ms queue=0.1ms idle=1781.4ms
+SELECT c0."id", c0."body", c0."commenter", c0."article_id", c0."inserted_at", c0."updated_at", c0."article_id" FROM "comments" AS c0 WHERE (c0."article_id" = ?) ORDER BY c0."article_id" [5]
+↳ anonymous fn/4 in :elixir.eval_external_handler/1, at: src/elixir.erl:309
+%Blog.MyBlog.Article{
+  __meta__: #Ecto.Schema.Metadata<:loaded, "articles">,
+  id: 5,
+  title: "My test article",
+  body: "Has many comments",
+  comments: [
+    %Blog.MyBlog.Comment{
+      __meta__: #Ecto.Schema.Metadata<:loaded, "comments">,
+      id: 1,
+      body: "Sweet article",
+      commenter: "First commenter",
+      article_id: 5,
+      article: #Ecto.Association.NotLoaded<association :article is not loaded>,
+      inserted_at: ~U[2024-04-24 00:12:35Z],
+      updated_at: ~U[2024-04-24 00:12:35Z]
+    }
+  ],
+  inserted_at: ~U[2024-04-24 00:12:10Z],
+  updated_at: ~U[2024-04-24 00:12:10Z]
+}
+```
+
+In the example above, Ecto.build_assoc received an existing article struct, that was already persisted to the database, and built a Comment struct, based on its :comments association, with the article_id foreign key field properly set to the ID in the article struct.
+
+## 8.3 Adding a Route for Comments

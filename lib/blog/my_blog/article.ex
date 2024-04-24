@@ -1,10 +1,12 @@
 defmodule Blog.MyBlog.Article do
   use Ecto.Schema
   import Ecto.Changeset
+  alias Blog.MyBlog.Comment
 
   schema "articles" do
     field :title, :string
     field :body, :string
+    has_many :comments, Comment
 
     timestamps(type: :utc_datetime)
   end
