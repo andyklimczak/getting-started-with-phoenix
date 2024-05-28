@@ -3,6 +3,7 @@ defmodule BlogWeb.ArticleController do
 
   alias Blog.MyBlog
   alias Blog.MyBlog.Article
+  alias Blog.MyBlog.Comment
 
   def index(conn, _params) do
     articles = MyBlog.list_articles()
@@ -11,7 +12,8 @@ defmodule BlogWeb.ArticleController do
 
   def show(conn, %{"id" => id}) do
     article = MyBlog.get_article!(id)
-    render(conn, :show, article: article)
+    comment_changeset = MyBlog.change_comment(%Comment{}, %{article_id: article.id})
+    render(conn, :show, article: article, comment_changeset: comment_changeset)
   end
 
   def new(conn, _params) do

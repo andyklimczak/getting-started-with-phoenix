@@ -1042,6 +1042,8 @@ Remember to update your repository by running migrations:
     $ mix ecto.migrate
 ```
 
+> :warning: See what files are generated for each of the `mix phx.gen` commands [in the docs here](https://hexdocs.pm/phoenix/Mix.Tasks.Phx.Gen.html).
+
 First, take a look at the `Comment` model, located at `lib/blog/my_blog/comment.ex`:
 
 ```elixir
@@ -1167,7 +1169,7 @@ defmodule Blog.MyBlog.Comment do
     comment
     |> cast(attrs, [:commenter, :body, :article_id])
     |> validate_required([:commenter, :body])
-    |> assoc_constraint(:article_id)
+    |> assoc_constraint(:article)
   end
 end
 ```
@@ -1300,3 +1302,277 @@ SELECT c0."id", c0."body", c0."commenter", c0."article_id", c0."inserted_at", c0
 In the example above, Ecto.build_assoc received an existing article struct, that was already persisted to the database, and built a Comment struct, based on its :comments association, with the article_id foreign key field properly set to the ID in the article struct.
 
 ## 8.3 Adding a Route for Comments
+
+As with the articles controller, we will need to add a route so that Phoenix knows where we would like to navigate to see comments.
+Open up the `lib/blog/router.ex` file again, and edit it as follows:
+```elixir
+  scope "/", BlogWeb do
+    pipe_through :browser
+
+    get "/", ArticleController, :index
+    resources "/articles", ArticleController do
+        resources "/comments", CommentController
+    end
+  end
+```
+
+This creates comments as a nested resource within articles. This is another part of capturing the hierarchical relationship that exists between articles and comments.
+
+## 8.4 Generating a Controller
+
+With the model in hand, you can turn your attention to creating a matching controller.
+Again, we'll create it by hand by creating a new, empty file at `lib/blog_web/controllers/comment_controller.ex`.
+
+Let's first wire up the Article show template (`lib/blog_web/controllers/article_html/show.html.heex`) to let us create a new comment:
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul>
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+
+<p>
+<.simple_form :let={f} for={@comment_changeset} action={~p"/articles/#{@article}/comments"}>
+  <.error :if={@comment_changeset.action}>
+    Oops, something went wrong! Please check the errors below.
+  </.error>
+  <.input field={f[:commenter]} type="text" label="Commenter" />
+  <.input field={f[:body]} type="text" label="Body" />
+  <:actions>
+    <.button>Create Comment</.button>
+  </:actions>
+</.simple_form>
+</p>
+```
+
+This adds a form on the `Article` show page that creates a new comment by calling the `CommentsController` create action. 
+
+Let's wire up the `create` in `lib/blog/blog_web/controllers/comment_controller.ex`:
+```elixir
+defmodule BlogWeb.CommentController do
+  use BlogWeb, :controller
+
+  alias Blog.MyBlog
+  alias Blog.MyBlog.Comment
+
+  def create(conn, %{"comment" => comment_params, "article_id" => article_id} = params) do
+
+    case MyBlog.create_comment(Map.merge(comment_params, %{"article_id" => article_id})) do
+      {:ok, comment} ->
+        conn
+        |> put_flash(:info, "Comment created successfully.")
+        |> redirect(to: ~p"/articles/#{comment.article_id}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :new, changeset: changeset)
+    end
+  end
+end
+```
+
+You'll see a bit more complexity here than you did in the controller for articles.
+That's a side-effect of the nesting that you've set up.
+Each request for a comment has to keep track of the article to which the comment is attached, thus the `article_id` must be merged to the `comment_params` map to make the association betwen the comment and the article.
+
+Once we have made the new comment, we send the user back to the original article using the `redirect(to: ~p"/articles/#{comment.article_id}")` helper.
+As we have already seen, this calls the show action of the `ArticlesController` which in turn renders the show.html.heex template.
+This is where we want the comment to show, so let's add that to the `lib/blog_web/controllers/article_html/show.html.heex`:
+
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul class="py-2">
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+
+<h2 class="text-md text-brand">
+    Comments
+</h2>
+<%= for comment <- @article.comments do %>
+<div class="py-2">
+    <p>
+        <strong>Commenter:</strong>
+        <%= comment.commenter %>
+    </p>
+    <p>
+        <strong>Comment:</strong>
+        <%= comment.body %>
+    </p>
+</div>
+<% end %>
+
+<p>
+<.simple_form :let={f} for={@comment_changeset} action={~p"/articles/#{@article}/comments"}>
+  <.error :if={@comment_changeset.action}>
+    Oops, something went wrong! Please check the errors below.
+  </.error>
+  <.input field={f[:commenter]} type="text" label="Commenter" />
+  <.input field={f[:body]} type="text" label="Body" />
+  <:actions>
+    <.button>Create Comment</.button>
+  </:actions>
+</.simple_form>
+</p>
+```
+
+Lastly to do is to `preload` the `comments` for the `@article`.
+Unlike other ORMs, Ecto does not allow lazy loading, meaning that all requests to the database must be explicit.
+Add `Repo.preload(:comments)` to the `get_article!` method in the `MyBlog` context in `lib/blog/my_blog/my_blog.ex`:
+```elixir
+defmodule Blog.MyBlog do
+  import Ecto.Query, warn: false
+
+  alias Blog.Repo
+  alias Blog.MyBlog.Article
+
+  def list_articles() do
+    Repo.all(Article)
+  end
+
+  def get_article!(id) do
+    Repo.get!(Article, id)
+    |> Repo.preload(:comments)
+  end
+
+  def change_article(%Article{} = article, attrs \\ %{}) do
+    Article.changeset(article, attrs)
+  end
+
+  def create_article(attrs \\ %{}) do
+    %Article{}
+    |> Article.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_article(%Article{} = article, attrs) do
+    article
+    |> Article.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_article(%Article{} = article) do
+    Repo.delete(article)
+  end
+
+  alias Blog.MyBlog.Comment
+
+  @doc """
+  Returns the list of comments.
+
+  ## Examples
+
+      iex> list_comments()
+      [%Comment{}, ...]
+
+  """
+  def list_comments do
+    Repo.all(Comment)
+  end
+
+  @doc """
+  Gets a single comment.
+
+  Raises `Ecto.NoResultsError` if the Comment does not exist.
+
+  ## Examples
+
+      iex> get_comment!(123)
+      %Comment{}
+
+      iex> get_comment!(456)
+      ** (Ecto.NoResultsError)
+
+  """
+  def get_comment!(id), do: Repo.get!(Comment, id)
+
+  @doc """
+  Creates a comment.
+
+  ## Examples
+
+      iex> create_comment(%{field: value})
+      {:ok, %Comment{}}
+
+      iex> create_comment(%{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def create_comment(attrs \\ %{}) do
+    %Comment{}
+    |> Comment.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a comment.
+
+  ## Examples
+
+      iex> update_comment(comment, %{field: new_value})
+      {:ok, %Comment{}}
+
+      iex> update_comment(comment, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_comment(%Comment{} = comment, attrs) do
+    comment
+    |> Comment.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a comment.
+
+  ## Examples
+
+      iex> delete_comment(comment)
+      {:ok, %Comment{}}
+
+      iex> delete_comment(comment)
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def delete_comment(%Comment{} = comment) do
+    Repo.delete(comment)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking comment changes.
+
+  ## Examples
+
+      iex> change_comment(comment)
+      %Ecto.Changeset{data: %Comment{}}
+
+  """
+  def change_comment(%Comment{} = comment, attrs \\ %{}) do
+    Comment.changeset(comment, attrs)
+  end
+end
+```
+
+Now try creating a new comment.
+You should be redirected back to the article show page, and see the newly created comment.

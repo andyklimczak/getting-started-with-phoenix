@@ -15,7 +15,6 @@ defmodule Blog.MyBlog.Comment do
   def changeset(comment, attrs) do
     comment
     |> cast(attrs, [:commenter, :body, :article_id])
-    |> validate_required([:commenter, :body])
-    |> assoc_constraint(:article_id)
+    |> validate_required([:commenter, :body, :article_id])
   end
 end

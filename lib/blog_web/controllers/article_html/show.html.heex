@@ -4,7 +4,7 @@
 
 <p><%= @article.body %></p>
 
-<ul>
+<ul class="py-2">
     <li>
         <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
     </li>
@@ -14,3 +14,32 @@
         </.link>
     </li>
 </ul>
+
+<h2 class="text-md text-brand">
+    Comments
+</h2>
+<%= for comment <- @article.comments do %>
+<div class="py-2">
+    <p>
+        <strong>Commenter:</strong>
+        <%= comment.commenter %>
+    </p>
+    <p>
+        <strong>Comment:</strong>
+        <%= comment.body %>
+    </p>
+</div>
+<% end %>
+
+<p>
+<.simple_form :let={f} for={@comment_changeset} action={~p"/articles/#{@article}/comments"}>
+  <.error :if={@comment_changeset.action}>
+    Oops, something went wrong! Please check the errors below.
+  </.error>
+  <.input field={f[:commenter]} type="text" label="Commenter" />
+  <.input field={f[:body]} type="text" label="Body" />
+  <:actions>
+    <.button>Create Comment</.button>
+  </:actions>
+</.simple_form>
+</p>

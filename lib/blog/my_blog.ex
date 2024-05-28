@@ -10,6 +10,7 @@ defmodule Blog.MyBlog do
 
   def get_article!(id) do
     Repo.get!(Article, id)
+    |> Repo.preload(:comments)
   end
 
   def change_article(%Article{} = article, attrs \\ %{}) do
