@@ -1576,3 +1576,129 @@ end
 
 Now try creating a new comment.
 You should be redirected back to the article show page, and see the newly created comment.
+
+# 9 Refactoring
+
+Now that we have articles and comments working, take a look at the `lib/blog_web/controllers/article_html/show.html.heex` template. It is getting long and awkward.
+We can use partials to clean it up.
+
+## 9.1 Rendering Partial Collections
+
+First, we will make a comment partial to extract showing all the comments for the article.
+Create the file `lib/blog_web/controllers/article_html/_comment.html.heex` and put the following into it:
+
+```html
+<div class="py-2">
+    <p>
+        <strong>Commenter:</strong>
+        <%= @comment.commenter %>
+    </p>
+    <p>
+        <strong>Comment:</strong>
+        <%= @comment.body %>
+    </p>
+</div>
+```
+
+Then you can change `lib/blog_web/controllers/article_html/show.html.heex` to look like the following:
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul class="py-2">
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+
+<h2 class="text-md text-brand">
+    Comments
+</h2>
+<%= for comment <- @article.comments do %>
+    <._comment comment={comment} />
+<% end %>
+
+<p>
+<.simple_form :let={f} for={@comment_changeset} action={~p"/articles/#{@article}/comments"}>
+  <.error :if={@comment_changeset.action}>
+    Oops, something went wrong! Please check the errors below.
+  </.error>
+  <.input field={f[:commenter]} type="text" label="Commenter" />
+  <.input field={f[:body]} type="text" label="Body" />
+  <:actions>
+    <.button>Create Comment</.button>
+  </:actions>
+</.simple_form>
+</p>
+```
+
+This will now render the partial in `lib/blog_web/controllers/article_html/_comment.html.heex` once for each comment that is in the `@article.comments` collection. 
+
+## 9.2 Rendering a Partial Form
+
+Let us also move that new comment section out to its own partial.
+Again, you create a file `lib/blog_web/controllers/comment_html/_form.html.heex` containing:
+
+```html
+<.simple_form :let={f} for={@comment_changeset} action={~p"/articles/#{@article}/comments"}>
+<.error :if={@comment_changeset.action}>
+Oops, something went wrong! Please check the errors below.
+</.error>
+<.input field={f[:commenter]} type="text" label="Commenter" />
+<.input field={f[:body]} type="text" label="Body" />
+<:actions>
+    <.button>Create Comment</.button>
+</:actions>
+</.simple_form>
+```
+
+Then you make the `lib/blog_web/controllers/article_html/show.html.heex` look like the following:
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul class="py-2">
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+
+<h2 class="text-md text-brand">
+    Comments
+</h2>
+<%= for comment <- @article.comments do %>
+    <._comment comment={comment} />
+<% end %>
+
+<p>
+    <._form comment_changeset={@comment_changeset} article={@article} />
+</p>
+```
+
+Lastly, we need to update `lib/blog_web/article_html.ex` to include the form template in the new `comment` directory:
+```html
+defmodule BlogWeb.ArticleHTML do
+  use BlogWeb, :html
+
+  embed_templates "article_html/*"
+  embed_templates "comment_html/*"
+end
+```
+
+Refresh and the form should still work.
