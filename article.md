@@ -1702,3 +1702,73 @@ end
 ```
 
 Refresh and the form should still work.
+
+## 9.3 Sharing code between schemas
+
+Not sure of what the best way to implement this in Phoenix is actually.
+
+# 10 Deleting Comments
+
+Another important feature of a blog is being able to delete spam comments.
+To do this, we need to implement a link of some sort in the view and a destroy action in the CommentsController.
+
+So first, let's add the delete link in the `lib/blog_web/controllers/comment_html/_comment.html.heex` partial:
+
+```html
+<div class="py-2">
+    <p>
+        <strong>Commenter:</strong>
+        <%= @comment.commenter %>
+    </p>
+    <p>
+        <strong>Comment:</strong>
+        <%= @comment.body %>
+    </p>
+</div>
+
+<.link href={~p"/articles/#{@comment.article_id}/comments/#{@comment.id}"} method="delete" data-confirm="Are you sure?">
+Delete Comment
+</.link>
+```
+
+Clicking this new "Delete Comment" link will fire off a `DELETE /articles/:article_id/comments/:id` to our CommentsController, which can then use this to find the comment we want to delete, so let's add a `delete` action to our controller (`lib/blog_web/controllers/comment_controller.ex`):
+```elixir
+defmodule BlogWeb.CommentController do
+  use BlogWeb, :controller
+
+  alias Blog.MyBlog
+  alias Blog.MyBlog.Comment
+
+  def create(conn, %{"comment" => comment_params, "article_id" => article_id} = params) do
+    case MyBlog.create_comment(Map.merge(comment_params, %{"article_id" => article_id})) do
+      {:ok, comment} ->
+        conn
+        |> put_flash(:info, "Comment created successfully.")
+        |> redirect(to: ~p"/articles/#{comment.article_id}")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        render(conn, :new, changeset: changeset)
+    end
+  end
+
+  def delete(conn, %{"article_id" => article_id, "id" => id}) do
+    comment = MyBlog.get_comment_for_article!(article_id, id)
+    {:ok, comment} = MyBlog.delete_comment(comment)
+
+    conn
+    |> put_flash(:info, "Comment deleted successfully.")
+    |> redirect(to: ~p"/articles/#{comment.article_id")
+  end
+end
+```
+
+The destroy action will find the comment we are looking at in the article's comments, and then remove it from the database and send us back to the show action for the article.
+
+Let's add the new context method `MyBlog.get_comment_for_article!` to the `MyBlog` context at `lib/blog/my_blog/my_blog.ex`:
+```elixir
+def get_comment_for_article!(article_id, comment_id) do
+  Repo.one(from c in Comment, where: c.article_id == ^article_id and c.id == ^comment_id)
+end
+```
+
+Try deleting a comment now.

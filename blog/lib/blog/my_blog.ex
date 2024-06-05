@@ -128,4 +128,8 @@ defmodule Blog.MyBlog do
   def change_comment(%Comment{} = comment, attrs \\ %{}) do
     Comment.changeset(comment, attrs)
   end
+
+  def get_comment_for_article!(article_id, comment_id) do
+    Repo.one(from c in Comment, where: c.article_id == ^article_id and c.id == ^comment_id)
+  end
 end

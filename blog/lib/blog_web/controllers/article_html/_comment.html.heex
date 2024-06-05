@@ -8,3 +8,7 @@
         <%= @comment.body %>
     </p>
 </div>
+
+<.link href={~p"/articles/#{@comment.article_id}/comments/#{@comment.id}"} method="delete" data-confirm="Are you sure?">
+  Delete Comment
+</.link>

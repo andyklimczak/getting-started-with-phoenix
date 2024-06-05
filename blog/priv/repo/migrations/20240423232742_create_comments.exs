@@ -5,7 +5,7 @@ defmodule Blog.Repo.Migrations.CreateComments do
     create table(:comments) do
       add :commenter, :string
       add :body, :text
-      add :article_id, references(:articles, on_delete: :nothing)
+      add :article_id, references(:articles, on_delete: :delete_all)
 
       timestamps(type: :utc_datetime)
     end
