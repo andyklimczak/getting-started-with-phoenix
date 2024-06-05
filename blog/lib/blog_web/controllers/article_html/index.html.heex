@@ -7,10 +7,12 @@
 
 <ul class="pt-5">
     <%= for article <- @articles do %>
-    <li>
-        <a href={~p"/articles/#{article}"}>
-            <%= article.title %>
-        </a>
-    </li>
+        <%= unless Blog.MyBlog.Article.archived?(article) do %>
+                <li>
+                    <a href={~p"/articles/#{article}"}>
+                        <%= article.title %>
+                    </a>
+                </li>
+        <% end %>
     <% end %>
 </ul>

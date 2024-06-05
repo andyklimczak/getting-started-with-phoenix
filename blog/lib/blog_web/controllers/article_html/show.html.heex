@@ -19,7 +19,9 @@
     Comments
 </h2>
 <%= for comment <- @article.comments do %>
-    <._comment comment={comment} />
+    <%= unless Blog.MyBlog.Comment.archived?(comment) do %>
+        <._comment comment={comment} />
+    <% end %>
 <% end %>
 
 <p>

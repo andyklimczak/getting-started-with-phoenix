@@ -1702,3 +1702,198 @@ end
 ```
 
 Refresh and the form should still work.
+
+## 9.3 Using `use` to Share Code
+
+We'll share common code for the `status` of articles and comments from a module using the `use` keyword.
+
+A blog article might have various statuses - for instance, it might be visible to everyone (i.e. public), or only visible to the author (i.e. private). It may also be hidden to all but still retrievable (i.e. archived). Comments may similarly be hidden or visible. This could be represented using a status column in each model.
+
+First we'll add `status` to the article and comment tables:
+```shell
+$ mix ecto.gen.migration add_status_to_articles
+$ mix ecto.gen.migration_add_status_to_comments
+```
+
+Which will create two new migration files in `priv/repo/migrations`.
+Edit the migrations to add a new field, `status`, to both the `articles` and `comments` table, with a default value of `"public"`:
+
+```elixir
+defmodule Blog.Repo.Migrations.AddStatusToArticles do
+  use Ecto.Migration
+
+  def change do
+    alter table(:articles) do
+        add :status, :text, default: "public"
+    end
+  end
+end
+```
+
+```elixir
+defmodule Blog.Repo.Migrations.AddStatusToComments do
+  use Ecto.Migration
+
+  def change do
+    alter table(:comments) do
+        add :status, :text, default: "public"
+    end
+  end
+end
+```
+
+Run the migrations to add the new column to both tables:
+```shell
+$ mix ecto.migrate
+```
+
+Let's the field to the schemas, changesets, and validations along with a new `archived?` method in `lib/blog/my_blog/article.ex`:
+```elixir
+defmodule Blog.MyBlog.Article do
+  use Ecto.Schema
+  import Ecto.Changeset
+  alias Blog.MyBlog.Comment
+
+  schema "articles" do
+    field :title, :string
+    field :body, :string
+    field :status, :string
+    has_many :comments, Comment
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc false
+  def changeset(article, attrs) do
+    article
+    |> cast(attrs, [:title, :body, :status])
+    |> validate_required([:title, :body])
+    |> validate_length(:body, min: 10)
+    |> validate_inclusion(:status, ["public", "private", "archived"])
+  end
+
+  def archived?(article) do
+    article.status == "archived"
+  end
+end
+```
+
+then in the comment schema at `lib/blog/my_blog/comment.ex`:
+```elixir
+defmodule Blog.MyBlog.Comment do
+  use Ecto.Schema
+  import Ecto.Changeset
+  alias Blog.MyBlog.Article
+
+  schema "comments" do
+    field :body, :string
+    field :commenter, :string
+    field :status, :string
+    belongs_to :article, Article
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc false
+  def changeset(comment, attrs) do
+    comment
+    |> cast(attrs, [:commenter, :body, :article_id, :status])
+    |> validate_required([:commenter, :body, :article_id])
+    |> validate_inclusion(:status, ["public", "private", "archived"])
+  end
+
+  def archived?(comment) do
+    comment.status == "archived"
+  end
+end
+```
+
+Let's update the existing articles and comments with the default value.
+The default value in the migration will only apply for new rows.
+```shell
+$ iex -S mix
+iex(1)> alias Blog.Repo
+Blog.Repo
+iex(2)> alias Blog.MyBlog.Article
+Blog.MyBlog.Article
+iex(3)> alias Blog.MyBlog.Comment
+Blog.MyBlog.Comment
+iex(4)> Repo.update_all(Article, set: [status: "default"])
+[debug] QUERY OK source="articles" db=10.4ms decode=0.8ms idle=1451.2ms
+UPDATE "articles" AS a0 SET "status" = ? ["default"]
+iex(5)> Repo.update_all(Comment, set: [status: "default"])
+[debug] QUERY OK source="comments" db=0.1ms queue=0.1ms idle=1448.8ms
+UPDATE "comments" AS c0 SET "status" = ? ["default"]
+↳ anonymous fn/4 in :elixir.eval_external_handler/1, at: src/elixir.erl:309
+{15, nil}
+```
+
+Double check that `status` was correctly set for existing rows by getting all the articles and comments:
+```elixir
+iex(6)> Repo.all(Article)
+iex(7)> Repo.all(Comment)
+```
+
+Then in our article index template (`lib/blog_web/controllers/article_html/index.html.heex`), let's use the `archived?` method to avoid displaying any article that is archived:
+
+```html
+<h1 class="text-lg text-brand">
+    Hello Phoenix
+</h1>
+<a href={~p"/articles/new"}>
+    New Article
+</a>
+
+<ul class="pt-5">
+    <%= for article <- @articles do %>
+        <%= unless Blog.MyBlog.Article.archived?(article) do %>
+                <li>
+                    <a href={~p"/articles/#{article}"}>
+                        <%= article.title %>
+                    </a>
+                </li>
+        <% end %>
+    <% end %>
+</ul>
+```
+
+Let's apply the similar logic in the article show template (`lib/blog_web/controllers/article_html/show.html.heex`):
+```html
+<h1 class="text-lg text-brand">
+    <%= @article.title %>
+</h1>
+
+<p><%= @article.body %></p>
+
+<ul class="py-2">
+    <li>
+        <.link navigate={~p"/articles/#{@article}/edit"}>Edit</.link>
+    </li>
+    <li>
+        <.link href={~p"/articles/#{@article}"} method="delete" data-confirm="Are you sure?">
+          Delete
+        </.link>
+    </li>
+</ul>
+
+<h2 class="text-md text-brand">
+    Comments
+</h2>
+<%= for comment <- @article.comments do %>
+    <%= unless Blog.MyBlog.Comment.archived?(comment) do %>
+        <._comment comment={comment} />
+    <% end %>
+<% end %>
+
+<p>
+    <._form comment_changeset={@comment_changeset} article={@article} />
+</p>
+```
+
+However, if you look again at our models now, you can see that the logic is duplicated. If in the future we increase the functionality of our blog - to include private messages, for instance - we might find ourselves duplicating the logic yet again. This is where concerns come in handy.
+
+Let's create a module to hold this shared logic in `lib/blog/my_blog/visible.ex`:
+
+```elixir
+defmodule 
+```
