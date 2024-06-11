@@ -1,7 +1,33 @@
-# Elixir Pheonix Getting Started
+# Elixir Phoenix Getting Started
+
+## 1 Guide Assumptions
+
+This guide is designed for beginners who want to get started with creating a Phoenix application from scratch.
+It does not assume that you have any prior experience with Phoenix.
+
+Phoenix is a web application framework running on the Elixir programming language.
+If you have no prior experience with Elixir, you will find a very steep learning curve diving straight into Phoenix.
+There are several curated lists of online resources for learning Phoenix:
+
+- [Elixir Introduction](https://hexdocs.pm/elixir/introduction.html)
+- [Community Resources](https://elixir-lang.org/learning.html)
+
+## 2 What is Phoenix?
+
+> Phoenix is a web development framework written in Elixir which implements the server-side Model View Controller (MVC) pattern. Many of its components and concepts will seem familiar to those of us with experience in other web frameworks like Ruby on Rails or Python's Django.
+>
+> Phoenix provides the best of both worlds - high developer productivity and high application performance. It also has some interesting new twists like channels for implementing realtime features and pre-compiled templates for blazing speed.
+
+[source](https://hexdocs.pm/phoenix/overview.html)
+
 
 ## 3 Creating a new Phoenix Project
 
+The best way to read this guide is to follow it step by step.
+All steps are essential to run this example application and no additional code or steps are needed.
+
+By following along with this guide, you'll create a Phoenix project called `blog`, a (very) simple weblog.
+Before you can start building the application, you need to make sure that you have Phoenix itself installed.
 
 ### 3.1 Installing Phoenix 
 
@@ -13,6 +39,7 @@ Prerequisites:
 
 #### 3.1.1 Installing Ruby
 
+Verify that you have a current version of Elixir installed:
 ```shell
 $ elixir -v
 Erlang/OTP 26 [erts-14.2.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [dtrace]
@@ -20,29 +47,72 @@ Erlang/OTP 26 [erts-14.2.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threa
 Elixir 1.16.1 (compiled with Erlang/OTP 26)
 ```
 
+Phoenix requires a Elixir version 1.14.1/Erlang 24 or later.
+
+For installation methods, check out [the official docs](https://elixir-lang.org/install.html).
+
 #### 3.1.2 Installing SQLite3
 
+You will also need an installation of SQLite3.
+
+Verify that is correctly installed and in your load `PATH`:
 ```shell
 $ sqlite3 --version
 ```
 
 #### 3.1.3 Installing Phoenix
 
+To install Phoenix, use the `mix` command:
+
 ```shell
 $ mix archive.install hex phx_new
 ```
 
+To verify Phoenix was installed correctly, run the command:
+```shell
+mix phx.new
+```
+
 ### 3.2 Creating the Blog Application
+
+Phoenix comes with a number of scripts called generators that are designed to make development easier and quicker by creating files with boilerplate code.
+One of these is the new applicatoin generator, which will provide you with a foundation of a fresh Phoenix application so that you don't have to write it yourself.
+
+Too  use this generator, open a terminal, navigate to a directory, and run:
 
 ```shell
 $ mix phx.new blog --database sqlite3
 ```
 
+This will create a Phoenix application called Blog in a `blog` directory and install all dependencies that are already in the `mix.exs` file using `mix deps.get`.
+
+> :warning: You can see all the command line options the Phoenix application generator accepts by running `mix phx.new`
+
+After you create the blog application, switch to its directory:
+
 ```shell
 $ cd blog
 ```
 
+The `blog` directory will have a number of generated files and folder that make up a structure of a Phoenix application.
+Most of the work of this tutorial will happen in the `lib` folder, but here's a basic rundown of each of the files and folders that Phoenix creates by default:
+
+| File/Folder | Purpose                                                                                                                                  |
+| --- |------------------------------------------------------------------------------------------------------------------------------------------|
+| assets/ | Contains your css and javascript assets for your application.                                                                            |
+| config/ | General and environment specific configuration for your application.                                                                     |
+| lib/ | Contains your contexts, schemas, controllers, views of your application. You'll focus on this directory for the remainder of this guide. |
+| priv/ | Contains your I18n translations, database migrations, and static assets.                                                                 |
+| test/ | Unit tests, fixtures, and other test files |
+| .formatter.exs | Config file for Elixir code formatting. See more [here](https://hexdocs.pm/mix/main/Mix.Tasks.Format.html). |
+| .gitignore | Default `.gitignore` file for Phoenix applications to not commit generated files to git repositories. |
+| mix.exs | Used to specify the main configuration for the project, application, and dependencies. |
+| README.md | Standard README that details how to run a Phoenix application. |
+
 ## 4 Hello Phoenix
+
+To begin with, let's get some text on the screen quickly.
+TO do this, you'll need your Phoenix application server running.
 
 ### 4.1 Starting Up the Web Server
 
