@@ -116,24 +116,36 @@ TO do this, you'll need your Phoenix application server running.
 
 ### 4.1 Starting Up the Web Server
 
-Need to create db and migrate before running the server
+You actually have a functional Phoenix application already.
+To see it, you need to start a web server on your development machine.
+But first we need to create and migrate the database.
+You can do this by running the following commands in the `blog` directory:
+
 ```shell
 $ mix ecto.create
 $ mix ecto.migrate
 ```
 
-Start server with
+Then start the server with:
 ```shell
 $ mix phx.server
 ```
 
-navigate to [http://localhost:4000](http://localhost:4000)
+To see your application in action, open the browser window and navigate to [http://localhost:4000](http://localhost:4000).
+You should see the default Phoenix information page.
+
+To stop the server, hit Ctrl-C in the terminal window.
+In the development environment, Phoenix does not generally require you to restart the server; changes you make in files will be automatically picked up by the server.
 
 ### 4.2 Say "Hello", Phoenix
 
-```elixir
-# router.ex
+To get Rails saying "Hello", you need to create at minimum a route, a controller with an action, and a view.
+A route maps a request to a controller action.
+A controller action performs the necessary work to handle the request, and prepares any data for the view.
+A view displays data in a desired format.
 
+Let's start by adding a route to our routes file, `lib/blog_web/router.ex` at the bottom of the `scope "/", BlogWeb do` block:
+```elixir
 scope "/", BlogWeb do
     pipe_through :browser
 
@@ -142,7 +154,9 @@ scope "/", BlogWeb do
 end
 ```
 
-Create `lib/blog_web/controllers/article_controller.ex`
+The route above declares that GET /articles requests are mapped to the index action of ArticleController.
+
+Let's create the `ArticleController` at `lib/blog_web/controllers/article_controller.ex` with our `index` action next:
 ```elixir
 defmodule BlogWeb.ArticleController do
   use BlogWeb, :controller
@@ -153,7 +167,7 @@ defmodule BlogWeb.ArticleController do
 end
 ```
 
-Create `lib/blog_web/controllers/article_html.ex`
+Next let's create an HTML view, which gets collocated with the controller in `lib/blog_web/controllers/article_html.ex`:
 ```elixir
 defmodule BlogWeb.ArticleHTML do
   use BlogWeb, :html
@@ -162,30 +176,50 @@ defmodule BlogWeb.ArticleHTML do
 end
 ```
 
-Create `lib/blog_web/controllers/article_html/index.html`
+Then finally create the HTML template in `lib/blog_web/controllers/article_html/index.html.heex`:
 ```html
 <h1 class="text-lg text-brand">
     Hello Phoenix
 </h1>
 ```
 
-Visit [http://localhost:4000/articles](http://localhost:4000)
+Visit [http://localhost:4000/articles](http://localhost:4000) to see Phoenix display "Hello Phoenix"!
 
 ### 4.3 Setting the Application to Home Page
 
-```elixir
-# router.ex
+At the moment, http://localhost:4000 still displays the default Phoenix page. 
+Let's display our "Hello, Phoenix!" text at http://localhost:4000 as well. To do so, we will add a route that maps the root path of our application to the appropriate controller and action.
 
-get "/", ArticleController, :index
-get "/articles", ArticleController, :index
+Let's open `lib/blog_web/router.ex` and add the `get "/"` path to map to the `ArticleController` `index` action:
+```elixir
+scope "/", BlogWeb do
+    pipe_through :browser
+
+    get "/", ArticleController, :index
+    get "/articles", ArticleController, :index
+end
 ```
 
 ## 5 Autoloading
 
+TODO?
+
 ## 6 MVC and You
+
+So far, we've discussed routes, controllers, actions, and views.
+All of these are typical pieces of a web application that follows the [MVC (Model-View-Controller)](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller) pattern. 
+MVC is a design pattern that divides the responsibilities of an application to make it easier to reason about. 
+Phoenix follows this design pattern by convention.
+
+Since we have a controller and a view to work with, let's generate the next piece: a model.
 
 ### 6.1 Generating a model
 
+The _model_ in Phoenix is actually an [Ecto Schema](https://hexdocs.pm/ecto/Ecto.Schema.html).
+Schemas behave similarly to models from other frameworks, such as mapping external data into Elixir structs.
+But the difference to other frameworks is that schemas area much more solely focused on that mapping of external data.
+
+To generate a schema, we'll use the [schema generator](https://hexdocs.pm/phoenix/Mix.Tasks.Phx.Gen.Schema.html) to generate an `article` schema which contains `title` and `body` database fields.
 ```shell
 $ mix phx.gen.schema MyBlog.Article articles title:string body:text
 * creating lib/blog/my_blog/article.ex
@@ -196,8 +230,16 @@ Remember to update your repository by running migrations:
     $ mix ecto.migrate
 ```
 
+This command will create two new files:
+1. Schema file at `lib/blog_my_blog/article.ex` in the `my_blog` context.
+2. Migration file at `priv/repo/migrations/<timestamp>_create_articles.exs`.
+
 ### 6.2 Database Migrations
 
+Migrations are used to alter the structure of an application's database. 
+In Phoenix applications, migrations are written in Elixir so that they can be database-agnostic.
+
+Let's take a look at the contents of our new migration file:
 ```elixir
 defmodule Blog.Repo.Migrations.CreateArticles do
   use Ecto.Migration
@@ -212,6 +254,16 @@ defmodule Blog.Repo.Migrations.CreateArticles do
   end
 end
 ```
+
+The `create table(:articles) do` block specifies how the new `articles` table should be constructed.
+By default, the table is automatically created with an auto-incrementing primary key `id` field.
+
+Inside the block for `create table(:articles), two columns are defined: `title` and `body`.
+These were added by the generator because we included them in our generate command.
+
+On the last line of the block is `timestamps(type: :utc_datetime)`.
+This method defines two additional columns named `inserted_at` and `updated_at`.
+Phoenix will manage these for us, setting the values when we create or update a schema.
 
 Let's run our migration with the following command:
 ```shell
@@ -320,7 +372,10 @@ Exit the shell by doing `Ctrl-C` twice.
 
 ### Showing a List of Articles
 
-Create context `lib/blog/myblog.ex`:
+Phoenix has a notion of organizing code into a domain-driven-design (DDD) style structure with the use of Contexts.
+Contexts are used as an abstraction layer between schemas and the rest of the application, by encapsulating data access and data validation.
+
+Let's create our `MyBlog` context at `lib/blog/my_blog.ex`:
 ```elixir
 defmodule Blog.MyBlog do
   import Ecto.Query, warn: false
@@ -334,10 +389,12 @@ defmodule Blog.MyBlog do
 end
 ```
 
-Update controller:
-```elixir
-# lib/blog_web/article_controller.ex
+Here we're using `alias` in order to more easily reference different modules.
+We've created a `list_articles` function that takes no params, and will return all the articles in the database by using the `Repo`.
+We will use this `list_articles` function in the controller, rather than using `Repo` directly.
 
+Let's update the `index` action of the `ArticleController` at `lib/blog_web/article_controller.ex`:
+```elixir
 defmodule BlogWeb.ArticleController do
   use BlogWeb, :controller
 
@@ -350,7 +407,10 @@ defmodule BlogWeb.ArticleController do
 end
 ```
 
-Update HTML:
+We are getting the `articles` in the database by using our `MyBlog` context's `list_articles` function, then assigning the articles in our HTML template the key `articles`.
+This will allow us to access the articles by using `@articles` in our template.
+
+Let's update the HTML to use the passed in `@articles` in `lib/blog_web/controllers/article_html/index.html.heex`:
 ```html
 <h1 class="text-lg text-brand">
     Hello Phoenix
@@ -364,18 +424,44 @@ Update HTML:
     <% end %>
 </ul>
 ```
+
+We are looping over all of the `@articles` with a `for` loop.
+For each `article` in `@articles`, we will display the article's title.
+
+Navigate to localhost:4000 and see the article's we've created so far.
+
 ## 7 CRUDit Where CRUDit Is Due 
+
+Almost all web applications involve CRUD (Create, Read, Update, and Delete) operations. 
+You may even find that the majority of the work your application does is CRUD. 
+Phoenix acknowledges this, and provides many features to help simplify code doing CRUD.
+
+Let's begin exploring these features by adding more functionality to our application.
 
 ### 7.1 Showing a Single Article
 
+We currently have an `index` view that list all of our articles in our database.
+Let's add a new view that shows the title and body of a single article.
+
+We start by adding a new route that maps to our new controller action (which we will add next).
+Open `lib/blog/router.ex` and insert the last route shown here:
+
 ```elixir
-# router.ex
-get "/", ArticleController, :index
-get "/articles", ArticleController, :index
-get "/articles/:id", ArticleController, :show
+scope "/", BlogWeb do
+    pipe_through :browser
+
+    get "/", ArticleController, :index
+    get "/articles", ArticleController, :index
+    get "/articles/:id", ArticleController, :show
+end
 ```
 
-Update context `lib/blog/my_blog.ex`:
+The new route is another `get` route, but it has something extra in its path: `:id`.
+This designates a route _parameter_.
+A route parameter captures a segment of the request's path, and puts that value in the params map.
+For example, when handling a request like `GET http://localhost:4000/articles/1`, `1` would be captured as the value for `:id`.
+
+Let's first update our `MyBlog` context with a function that retrieves an `Article` based on its primary key `id` in `lib/blog/my_blog/my_blog.ex`:
 ```elixir
 defmodule Blog.MyBlog do
   import Ecto.Query
@@ -393,7 +479,7 @@ defmodule Blog.MyBlog do
 end
 ```
 
-Update controller `lib/blog_web/controllers/article_controller.ex`:
+Then let's add the `show` method which uses the new context method to the controller at `lib/blog_web/controllers/article_controller.ex`:
 ```elixir
 defmodule BlogWeb.ArticleController do
   use BlogWeb, :controller
@@ -412,7 +498,11 @@ defmodule BlogWeb.ArticleController do
 end
 ```
 
-Update view `lib/blog_web/controllers/article_html/show.html.heex`:
+The `show` action method pulls the `id` from the incoming params, and passes the `id` to the `MyBlog` context's `get_article!(id)` function.
+The `get_article!` method in the context will return the article with the matching `id`.
+Lastly the `show` action assigns the `article` to the template variable named `article`, which will be accessible in the template using the `@article` variable.
+
+Then let's create a new HTML template at `lib/blog_web/controllers/article_html/show.html.heex` at access the article using `@article` to display its title and body:
 ```html
 <h1>
     <%= @article.title %>
@@ -423,7 +513,7 @@ Update view `lib/blog_web/controllers/article_html/show.html.heex`:
 
 Now we can see the article when we visit http://localhost:4000/articles/1!
 
-To finish up, let's add a convenient way to get to an article's page. We'll link each article's title in app/views/articles/index.html.erb to its page:
+To finish up, let's add a convenient way to get to an article's page. We'll link each article's title in `lib/blog_web/controllers/article_html/index.html.heex` to its page:
 ```html
 <h1 class="text-lg text-brand">
     Hello Phoenix
@@ -442,9 +532,13 @@ To finish up, let's add a convenient way to get to an article's page. We'll link
 
 ## 7.2 Resource Routing
 
-So far, we've covered the "R" (Read) of CRUD. We will eventually cover the "C" (Create), "U" (Update), and "D" (Delete). As you might have guessed, we will do so by adding new routes, controller actions, and views. Whenever we have such a combination of routes, controller actions, and views that work together to perform CRUD operations on an entity, we call that entity a resource. For example, in our application, we would say an article is a resource.
+So far, we've covered the "R" (Read) of CRUD. We will eventually cover the "C" (Create), "U" (Update), and "D" (Delete). 
+As you might have guessed, we will do so by adding new routes, controller actions, and views. 
+Whenever we have such a combination of routes, controller actions, and views that work together to perform CRUD operations on an entity, we call that entity a resource. 
+For example, in our application, we would say an article is a resource.
 
-Pheonix provides a routes method named resources that maps all of the conventional routes for a collection of resources, such as articles. So before we proceed to the "C", "U", and "D" sections, let's replace the two get routes in `lib/blog_web/router.ex` with resources:
+Pheonix provides a routes method named resources that maps all of the conventional routes for a collection of resources, such as articles. 
+So before we proceed to the "C", "U", and "D" sections, let's replace the two get routes in `lib/blog_web/router.ex` with resources:
 
 ```elixir
   scope "/", BlogWeb do
@@ -619,9 +713,14 @@ The resulting output of our `simple_form` will look like:
 
 ### 7.3.2 Using Parameters
 
-...Explanation
+Submitted form data is put into the `article_params` map.
+We could pass or pluck these values individually to `MyBlog.create_article`, but that would be verbose and possibly error-prone.
+And it would become worse as we add more fields.
 
-Let's update the create action in the controller `lib/blog_web/article_controller.ex` to use the values in the `params` param:
+Instead, we will pass a single map that contains values from the form.
+In order to prevent anything malicious from happening if extra params are submitted, we will `cast` the fields we want in the article schema's `changeset` function.
+
+Let's update the `create` action in the controller `lib/blog_web/article_controller.ex` to use the values in the `article_params` param:
 ```elixir
 defmodule BlogWeb.ArticleController do
   use BlogWeb, :controller
