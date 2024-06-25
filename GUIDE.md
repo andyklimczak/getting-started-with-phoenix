@@ -37,14 +37,14 @@ Prerequisites:
 - elixir
 - SQLite3
 
-#### 3.1.1 Installing Ruby
+#### 3.1.1 Installing Elixir
 
 Verify that you have a current version of Elixir installed:
 ```shell
 $ elixir -v
-Erlang/OTP 26 [erts-14.2.2] [source] [64-bit] [smp:8:8] [ds:8:8:10] [async-threads:1] [dtrace]
+Erlang/OTP 27 [erts-15.0] [source] [64-bit] [smp:20:20] [ds:20:20:10] [async-threads:1] [jit:ns]
 
-Elixir 1.16.1 (compiled with Erlang/OTP 26)
+Elixir 1.17.1 (compiled with Erlang/OTP 27)
 ```
 
 Phoenix requires a Elixir version 1.14.1/Erlang 24 or later.
@@ -76,9 +76,9 @@ mix phx.new
 ### 3.2 Creating the Blog Application
 
 Phoenix comes with a number of scripts called generators that are designed to make development easier and quicker by creating files with boilerplate code.
-One of these is the new applicatoin generator, which will provide you with a foundation of a fresh Phoenix application so that you don't have to write it yourself.
+One of these is the new application generator, which will provide you with a foundation of a fresh Phoenix application so that you don't have to write it yourself.
 
-Too  use this generator, open a terminal, navigate to a directory, and run:
+To use this generator, open a terminal, navigate to a directory, and run:
 
 ```shell
 $ mix phx.new blog --database sqlite3
@@ -154,7 +154,7 @@ scope "/", BlogWeb do
 end
 ```
 
-The route above declares that GET /articles requests are mapped to the index action of ArticleController.
+The route above declares that `GET /articles` requests are mapped to the index action of `ArticleController`.
 
 Let's create the `ArticleController` at `lib/blog_web/controllers/article_controller.ex` with our `index` action next:
 ```elixir
@@ -258,7 +258,7 @@ end
 The `create table(:articles) do` block specifies how the new `articles` table should be constructed.
 By default, the table is automatically created with an auto-incrementing primary key `id` field.
 
-Inside the block for `create table(:articles), two columns are defined: `title` and `body`.
+Inside the block for `create table(:articles)`, two columns are defined: `title` and `body`.
 These were added by the generator because we included them in our generate command.
 
 On the last line of the block is `timestamps(type: :utc_datetime)`.
